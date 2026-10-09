@@ -2,6 +2,8 @@
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 label="fund.mithril.flame-sword.local"
+# launchd does not inherit the interactive shell's Homebrew PATH.
+runtime_path="$root/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 case "${1:-start}" in
   start)
@@ -11,7 +13,8 @@ case "${1:-start}" in
     fi
     mkdir -p "$root/.local"
     launchctl submit -l "$label" -o "$root/.local/server.log" \
-      -e "$root/.local/server-error.log" -- "$root/.venv/bin/python" "$root/app.py"
+      -e "$root/.local/server-error.log" -- /usr/bin/env "PATH=$runtime_path" \
+      "$root/.venv/bin/python" "$root/app.py"
     echo "Flame Sword started. Default URL: http://127.0.0.1:5055"
     ;;
   stop)
