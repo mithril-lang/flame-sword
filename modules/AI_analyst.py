@@ -1,26 +1,21 @@
 # AI_analyst.py
-import requests
 import json
 from typing import Dict, List, Optional
 import logging
 from datetime import datetime
-import time
+from modules.mithril_api import MithrilAPI, MithrilAPIError
 
 class AIAnalyst:
-    def __init__(self, groq_api_key: str = None):
-        """
-        Initialize the AI analyst with Groq API integration
-        
-        Args:
-            groq_api_key: Optional Groq API key (if not provided, will use rule-based analysis only)
-        """
-        self.groq_api_key = "" #Add your groq_api_key here
+    def __init__(self):
+        """Use Mithril inference when configured, with an explicit rule-based fallback."""
+        self.client = MithrilAPI()
+        self.provider_errors = []
         self.logger = logging.getLogger(__name__)
         
         # Set up logging
         logging.basicConfig(level=logging.INFO)
         
-        # Templates for when Groq is not available
+        # Templates for when Mithril is not available
         self.owner_template = {
             'summary': "Security assessment completed with rule-based analysis",
             'key_findings': [
@@ -91,7 +86,7 @@ class AIAnalyst:
 
     def analyze_results(self, scan_results: Dict) -> Dict:
         """
-        Analyze scan results and generate dual-perspective insights using AI (Groq) or rule-based fallback
+        Analyze scan results and generate dual-perspective insights using AI (Mithril) or rule-based fallback
         
         Args:
             scan_results: Dictionary containing all scan results
@@ -100,23 +95,22 @@ class AIAnalyst:
             Dictionary with both owner and hunter perspectives
         """
         try:
+            self.provider_errors = []
             self.logger.info("Starting AI analysis...")
             
-            if self.groq_api_key:
-                self.logger.info("Using Groq API for analysis")
+            if self.client.api_key:
+                self.logger.info("Using Mithril API for analysis")
                 
                 # Analyze owner perspective
                 self.logger.info("Analyzing owner perspective...")
-                owner_analysis = self._analyze_with_groq(scan_results, perspective="owner")
-                
-                # Add delay between API calls
-                time.sleep(2)
+                owner_analysis = self._analyze_with_api(scan_results, perspective="owner")
                 
                 # Analyze hunter perspective
                 self.logger.info("Analyzing hunter perspective...")
-                hunter_analysis = self._analyze_with_groq(scan_results, perspective="hunter")
+                hunter_analysis = self._analyze_with_api(scan_results, perspective="hunter")
                 
             else:
+                self.provider_errors.append("MITHRIL_API_KEY is not configured; using rule-based analysis.")
                 self.logger.info("Using rule-based analysis")
                 owner_analysis = self._rule_based_owner_analysis(scan_results)
                 hunter_analysis = self._rule_based_hunter_analysis(scan_results)
@@ -126,6 +120,8 @@ class AIAnalyst:
             hunter_analysis = self._ensure_hunter_structure(hunter_analysis)
             
             result = {
+                'provider': self.client.configuration(),
+                'provider_errors': self.provider_errors,
                 'owner_analysis': owner_analysis,
                 'hunter_analysis': hunter_analysis,
                 'generated_at': datetime.now().isoformat()
@@ -142,104 +138,27 @@ class AIAnalyst:
                 'generated_at': datetime.now().isoformat()
             }
 
-    def _analyze_with_groq(self, scan_results: Dict, perspective: str) -> Dict:
-        """
-        Use Groq API to analyze the results from a specific perspective
-        """
+    def _analyze_with_api(self, scan_results: Dict, perspective: str) -> Dict:
         try:
-            # Prepare the appropriate prompt
-            prompt = self._prepare_prompt(scan_results, perspective)
-            
-            # Call Groq API with retry logic
-            headers = {
-                "Authorization": f"Bearer {self.groq_api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            payload = {
-                "model": "llama3-70b-8192",
-                "messages": [{
-                    "role": "user",
-                    "content": prompt
-                }],
-                "temperature": 0.7,
-                "max_tokens": 1500
-            }
-            
-            # Retry logic for API calls
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    self.logger.info(f"Making Groq API call for {perspective} perspective (attempt {attempt + 1})")
-                    
-                    response = requests.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        headers=headers,
-                        json=payload,
-                        timeout=45
-                    )
-                    
-                    self.logger.info(f"API response status: {response.status_code}")
-                    
-                    if response.status_code == 200:
-                        ai_response = response.json()
-                        content = ai_response['choices'][0]['message']['content']
-                        
-                        self.logger.info(f"Received AI response for {perspective}: {content[:200]}...")
-                        
-                        # Try to parse JSON response
-                        try:
-                            if content.strip().startswith('{'):
-                                analysis = json.loads(content)
-                                analysis['perspective'] = perspective
-                                analysis['ai_model'] = 'Groq Llama3-70B'
-                                return analysis
-                            else:
-                                # Handle non-JSON response
-                                return self._parse_unstructured_response(content, perspective)
-                        except json.JSONDecodeError as e:
-                            self.logger.error(f"JSON decode error: {e}")
-                            return self._parse_unstructured_response(content, perspective)
-                    
-                    else:
-                        self.logger.error(f"API call failed with status {response.status_code}: {response.text}")
-                        if response.status_code == 429:  # Rate limit
-                            if attempt < max_retries - 1:
-                                self.logger.info("Rate limited, waiting 10 seconds...")
-                                time.sleep(10)
-                                continue
-                        
-                        # For other errors, raise to try fallback
-                        response.raise_for_status()
-                        
-                except requests.exceptions.Timeout:
-                    self.logger.warning(f"API call timed out for {perspective} (attempt {attempt + 1})")
-                    if attempt < max_retries - 1:
-                        time.sleep(2 ** attempt)
-                        continue
-                    else:
-                        raise
-                        
-                except requests.exceptions.RequestException as e:
-                    self.logger.error(f"Request error for {perspective}: {e}")
-                    if attempt < max_retries - 1:
-                        time.sleep(2 ** attempt)
-                        continue
-                    else:
-                        raise
-                        
-        except Exception as e:
-            self.logger.error(f"Failed to get AI analysis for {perspective}: {e}")
-            
-        # Fallback to rule-based analysis
-        if perspective == "owner":
+            content = self.client.complete(self._prepare_prompt(scan_results, perspective))
+            start, end = content.find('{'), content.rfind('}') + 1
+            analysis = json.loads(content[start:end])
+            if not isinstance(analysis, dict):
+                raise ValueError
+            analysis['perspective'] = perspective
+            analysis['ai_model'] = f'Mithril / {self.client.model}'
+            return analysis
+        except (MithrilAPIError, ValueError) as error:
+            message = str(error) if isinstance(error, MithrilAPIError) else 'Mithril analysis was not a JSON object; using rule-based analysis.'
+            self.provider_errors.append(message)
+            self.logger.warning(message)
+        if perspective == 'owner':
             return self._rule_based_owner_analysis(scan_results)
-        else:
-            return self._rule_based_hunter_analysis(scan_results)
+        return self._rule_based_hunter_analysis(scan_results)
 
     def _prepare_prompt(self, scan_results: Dict, perspective: str) -> str:
         """
-        Prepare the prompt for Groq API based on scan results and perspective
+        Prepare the prompt for Mithril API based on scan results and perspective
         """
         # Create a condensed version of results for the prompt
         condensed = {
@@ -331,7 +250,7 @@ Return only valid JSON, no additional text."""
                 json_str = text[start:end]
                 parsed = json.loads(json_str)
                 parsed['perspective'] = perspective
-                parsed['ai_model'] = 'Groq Llama3-70B'
+                parsed['ai_model'] = f'Mithril / {self.client.model}'
                 return parsed
         except:
             pass

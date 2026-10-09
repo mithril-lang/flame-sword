@@ -15,6 +15,10 @@ from modules.AI_analyst import AIAnalyst
 from utils.reporting import ReportGenerator
 from utils.helpers import validate_domain, sanitize_domain
 import os
+from dotenv import load_dotenv
+from modules.mithril_api import MithrilAPI, MithrilAPIError
+
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -26,15 +30,13 @@ def datetimeformat(value, format='%Y-%m-%d %H:%M:%S'):
         value = datetime.fromisoformat(value)
     return value.strftime(format)
 
-# Add Groq API key configuration (or load from environment)
-GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 
 scan_results = {}
 scan_status = {}
 
 @app.context_processor
 def inject_now():
-    return {'now': datetime.now}
+    return {'now': datetime.now, 'mithril': MithrilAPI().configuration()}
 
 @app.route('/')
 def index():
@@ -249,8 +251,11 @@ def run_scan(scan_id, domain, options):
             
             # Run security analysis
             scan_status[scan_id]['current_task'] = 'Running security analysis...'
-            security_analyst = FastSecurityAnalyst()
-            security_analysis = security_analyst.analyze_subdomains(domain, subdomains)
+            security_analysis = {}
+            if options.get('security', True):
+                security_analyst = FastSecurityAnalyst()
+                security_analysis = security_analyst.analyze_subdomains(domain, subdomains)
+            scan_results[scan_id]['security_analysis'] = security_analysis
             
             # Add email enumeration results to security analysis
             if options.get('email', True):
@@ -258,10 +263,10 @@ def run_scan(scan_id, domain, options):
                 scan_results[scan_id]['security_analysis'] = security_analysis
             
             # Run AI analysis
-            scan_status[scan_id]['current_task'] = 'Generating AI insights...'
-            ai_analyst = AIAnalyst(GROQ_API_KEY)
-            ai_analysis = ai_analyst.analyze_results(scan_results[scan_id])
-            scan_results[scan_id]['ai_analysis'] = ai_analysis
+            if options.get('ai', True):
+                scan_status[scan_id]['current_task'] = 'Generating Mithril AI insights...'
+                ai_analyst = AIAnalyst()
+                scan_results[scan_id]['ai_analysis'] = ai_analyst.analyze_results(scan_results[scan_id])
             
             scan_status[scan_id]['progress'] = 100
             scan_status[scan_id]['status'] = 'completed'
@@ -366,8 +371,24 @@ def get_capabilities():
         ]
     })
 
+@app.route('/api/mithril/status')
+def mithril_status():
+    return jsonify(MithrilAPI().configuration())
+
+
+@app.route('/api/mithril/check', methods=['POST'])
+def mithril_check():
+    client = MithrilAPI()
+    try:
+        models = client.models()
+        return jsonify(**client.configuration(), reachable=True, models=models,
+                       model_available=client.model in models,
+                       inference_verified=False)
+    except MithrilAPIError as error:
+        return jsonify(**client.configuration(), reachable=False, error=str(error)), 502
+
+
 if __name__ == '__main__':
-    print("🌐 Server: http://127.0.0.1:5000")
-    print("-" * 50)
-    
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    port = int(os.getenv('FLAME_SWORD_PORT', '5055'))
+    print(f"Flame Sword: http://127.0.0.1:{port}")
+    app.run(debug=False, host='127.0.0.1', port=port)

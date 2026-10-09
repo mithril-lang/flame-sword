@@ -1,120 +1,45 @@
-# ARTEX V 2.0 - Automated Reconnaissance & Threat Exposure Analyzer
+# Flame Sword
 
-![Security](https://img.shields.io/badge/Security-Pentesting-blue)
-![Python](https://img.shields.io/badge/Python-3.8%2B-green)
-![Flask](https://img.shields.io/badge/Flask-2.3.2-lightgrey)
+Flame Sword is Mithril Fund's fork of [ARTEX](https://github.com/IlyassCODEX/ARTEX), named after the [mythological flaming sword](https://en.wikipedia.org/wiki/Flaming_sword_(mythology)). It retains ARTEX's reconnaissance modules and sends AI analysis requests to the Mithril inference API.
 
-ARTEX is an advanced web application security analysis platform that automates reconnaissance, vulnerability scanning, vulnerability scanning, threat assessment and AI-powered security recommendations  for modern web applications and infrastructure.
+## Local setup
 
-<img width="545" height="402" alt="ChatGPT Image Jul 17, 2025, 10_28_41 AM" src="https://github.com/user-attachments/assets/3357002f-5aa7-41c6-bc7d-090c463a836f" />
+Use Python 3.11 and an installed `nmap` binary. On macOS, port 5000 is often used by AirPlay; this fork defaults to port 5055.
 
-
-## Key Features
-
-- **Comprehensive Scanning**:
-  - Subdomain enumeration
-  - Port scanning with risk assessment
-  - Comprehensive DNS scanning
-  - Advanced SSL/TLS scanning & vulns discovering by versions
-  - Technology stack fingerprinting
-  - Authentication surface detection
-
-- **Intelligent Analysis**:
-  - AI-powered security recommendations (Groq/Llama3 integration)
-  - Dual-perspective reports (Owner vs Hunter views)
-  - Automated risk scoring
-
-- **Enterprise Ready**:
-  - Parallel scanning engine
-  - PDF/JSON report generation
-  - REST API for integration
-
-## Installation
-
-### Prerequisites
-- Python 3.8+
-- Nmap (system installation)
-- Redis (for job queueing - optional)
-
-```bash
-# Ubuntu/Debian
-sudo apt-get install nmap wkhtmltopdf
-
-# macOS
-brew install nmap wkhtmltopdf
+```sh
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python -r requirements.txt
+cp .env.example .env
+.venv/bin/python app.py
 ```
 
-Setup
-```bash
+Open http://127.0.0.1:5055. The server binds to loopback with the debugger disabled. This is a local development server; scan only systems you own or are authorized to assess.
 
-git clone https://github.com/yourrepo/artex.git
-cd artex
+On macOS, keep it running independently of the terminal with `./scripts/local-server.sh start`. Use `stop`, `restart`, or `status` to manage it. This uses a session-scoped launchd job; it does not install automatic login startup. Logs are in the ignored `.local/` directory. After adding a key to `.env`, use `./scripts/local-server.sh restart`.
 
-# Create virtual environment (recommended)
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# venv\Scripts\activate  # Windows
+## Mithril inference
 
-pip install -r requirements.txt
+Set `MITHRIL_API_KEY` in the ignored `.env` file or inject it through your secret manager. Do not commit credentials. Environment variables take precedence over `.env`. Restart the server after changing configuration.
 
-```
-Configuration
+- API: `https://api.mithril.fund/v1/chat/completions`
+- Default model: `qwen/qwen3.8-27b`; override with `MITHRIL_MODEL`.
+- `FLAME_SWORD_PORT` overrides the local listening port.
+- **Check connection** fetches the live model catalog. It does not prove authenticated inference or available AI credit.
+- AI analysis sends condensed findings for the owner and hunter perspectives to Mithril. No findings are sent when the API key is missing or the `ai` scan option is false.
+- Missing credentials, invalid responses and API failures use rule-based analysis with visible warnings. HTTP 401/403 means authentication or access must be checked; HTTP 429 requires checking credit and request limits. Requests are not automatically retried.
 
-U need to add your GROQ api key in the AI_analyst.py script (U can do this here : https://console.groq.com/keys ) , here :
+The server exposes credential-free configuration at `/api/mithril/status` and an explicit model-catalog check at `POST /api/mithril/check`.
 
-```bash
+## Verification
 
-# AI_analyst.py
-import requests
-import json
-from typing import Dict, List, Optional
-import logging
-from datetime import datetime
-import time
-
-class AIAnalyst:
-    def __init__(self, groq_api_key: str = None):
-        """
-        Initialize the AI analyst with Groq API integration
-        
-        Args:
-            groq_api_key: Optional Groq API key (if not provided, will use rule-based analysis only)
-        """
-        self.groq_api_key = "Add here your GROQ_API_KEY"
-        self.logger = logging.getLogger(__name__)
-        
-        # Set up logging
-        logging.basicConfig(level=logging.INFO)
-        ......
-        
+```sh
+.venv/bin/python -m pytest -q
+curl http://127.0.0.1:5055/health
+curl -X POST http://127.0.0.1:5055/api/mithril/check
 ```
 
-Usage
-Web Interface
-```bash
+Catalog reachability, authenticated inference, and a completed target scan are separate checks. The upstream scanning heuristics and reports have not undergone a full accuracy or security audit.
 
-python app.py
+## Upstream provenance
 
-Access the interface at: http://localhost:5000
-API Endpoints
-
-    POST /start_scan - Initiate new scan
-
-    GET /scan_status/<scan_id> - Check scan progress
-
-    GET /results/<scan_id> - View results
-
-    GET /export/<scan_id> - Export reports (PDF/JSON)
-```
-
-Scan Types
-Scan Type	Description	Intensity Levels
-Full Audit	Complete security assessment	Light/Normal/Aggressive
-Web Focus	Application-layer only	Normal
-Infrastructure	Network and server assessment	Aggressive
-Quick Scan	Surface-level vulnerabilities	Light
-Sample Report Output
-
-Security Notice
-
-This tool is for authorized security assessments only. Unauthorized use against systems you don't own or have permission to test is illegal.
+The initial fork preserves ARTEX at commit `a6d9650846bd1b743d03b26ebba46a16ffde3b06`. Original documentation is in [README.upstream.md](README.upstream.md). Upstream has no license file at that revision; this fork does not add or imply a new license for upstream code.

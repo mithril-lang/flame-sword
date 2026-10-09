@@ -1,9 +1,35 @@
 {% extends "base.html" %}
 
-{% block title %}Scan | ARTEX{% endblock %}
+{% block title %}Scan | Flame Sword{% endblock %}
 
 {% block content %}
 <div class="container">
+    <div class="alert alert-light border" role="status">
+        <strong>Mithril AI</strong> · {{ mithril.model }}
+        <span class="ms-2">{% if mithril.configured %}API key configured{% else %}API key missing — rule-based analysis{% endif %}</span>
+        <button type="button" class="btn btn-sm btn-outline-primary ms-2" id="mithrilCheck">Check connection</button>
+        <span id="mithrilConnection" class="ms-2" aria-live="polite"></span>
+        <div class="small text-muted mt-1">When AI analysis runs, condensed scan findings are sent to api.mithril.fund. Scan only authorized targets.</div>
+    </div>
+    <script>
+    document.getElementById('mithrilCheck').addEventListener('click', async function () {
+        const output = document.getElementById('mithrilConnection');
+        this.disabled = true;
+        output.textContent = 'Checking…';
+        try {
+            const response = await fetch('/api/mithril/check', {method: 'POST'});
+            const result = await response.json();
+            output.textContent = result.reachable
+                ? (result.model_available ? 'Model catalog reachable. ' : 'Configured model is unavailable. ')
+                  + (result.configured ? 'Inference has not been verified.' : 'Set MITHRIL_API_KEY to enable inference.')
+                : result.error;
+        } catch (error) {
+            output.textContent = 'Connection check failed.';
+        } finally {
+            this.disabled = false;
+        }
+    });
+    </script>
     <div class="row justify-content-center">
         <div class="col-lg-8">
             <div class="card card-modern border-0 mb-4">
@@ -66,6 +92,10 @@
                             </div>
                         </div>
                         
+                        <div class="form-check mt-3">
+                            <input class="form-check-input" type="checkbox" id="aiCheck" checked>
+                            <label class="form-check-label" for="aiCheck">Analyze findings with Mithril AI</label>
+                        </div>
                         <div class="d-grid mt-4">
                             <button type="submit" class="btn btn-modern" id="scanButton">
                                 <i class="bi bi-search me-2"></i> Start Scan
@@ -121,7 +151,7 @@ $(document).ready(function() {
             tech: $('#techCheck').is(':checked'),
             email: $('#emailCheck').is(':checked'),
             security: true,
-            ai: true
+            ai: $('#aiCheck').is(':checked')
         };
         
         $('#scanButton').prop('disabled', true).html('<i class="bi bi-hourglass me-2"></i> Scanning...');

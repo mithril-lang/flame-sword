@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Scan Results - {{ results.domain }} | ARTEX{% endblock %}
+{% block title %}Scan Results - {{ results.domain }} | Flame Sword{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -227,6 +227,11 @@
     </div>
     
     {% if results.ai_analysis %}
+    {% if results.ai_analysis.provider_errors %}
+    <div class="alert alert-warning" role="status">
+        {% for error in results.ai_analysis.provider_errors %}<p class="mb-1">{{ error }}</p>{% endfor %}
+    </div>
+    {% endif %}
     <div class="card card-modern mb-4">
         <div class="card-header-modern">
             <h4 class="mb-0">
