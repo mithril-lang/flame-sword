@@ -21,6 +21,8 @@ On macOS, keep it running independently of the terminal with `./scripts/local-se
 
 Set `MITHRIL_API_KEY` in the ignored `.env` file or inject it through your secret manager. Do not commit credentials. Environment variables take precedence over `.env`. Restart the server after changing configuration.
 
+For 1Password, set `MITHRIL_API_KEY_REF=op://vault/item/field` instead. The server calls `op read` at startup and keeps the resolved key in process memory. The CLI must be installed and authorized. A direct `MITHRIL_API_KEY` takes precedence. Resolution failures leave AI unconfigured without logging secret values or CLI output.
+
 - API: `https://api.mithril.fund/v1/chat/completions`
 - Default model: `qwen/qwen3.8-27b`; override with `MITHRIL_MODEL`.
 - `FLAME_SWORD_PORT` overrides the local listening port.

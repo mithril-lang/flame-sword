@@ -17,8 +17,10 @@ from utils.helpers import validate_domain, sanitize_domain
 import os
 from dotenv import load_dotenv
 from modules.mithril_api import MithrilAPI, MithrilAPIError
+from modules.secrets import load_mithril_key
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
+load_mithril_key()
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
