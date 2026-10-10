@@ -18,6 +18,8 @@ import os
 from dotenv import load_dotenv
 from modules.mithril_api import MithrilAPI, MithrilAPIError
 from modules.secrets import load_mithril_key
+from modules.storage import ScanStore
+from modules.evidence import normalize, assess, SECTIONS
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
 load_mithril_key()
@@ -35,6 +37,18 @@ def datetimeformat(value, format='%Y-%m-%d %H:%M:%S'):
 
 scan_results = {}
 scan_status = {}
+store = ScanStore()
+
+def checkpoint(scan_id):
+    store.save(scan_id, scan_status[scan_id], scan_results[scan_id])
+
+def module_finished(scan_id, module):
+    report = scan_results[scan_id]
+    data = report.get(SECTIONS[module])
+    state = "failed" if isinstance(data, dict) and data.get("error") else "completed"
+    report.setdefault("module_status", {})[module] = state
+    checkpoint(scan_id)
+
 
 @app.context_processor
 def inject_now():
@@ -90,8 +104,11 @@ def start_scan():
         'ai_analysis': {},
         'scan_id': scan_id,
         'timestamp': datetime.now().isoformat(),
-        'options': options
+        'options': options,
+        'module_status': {name: 'pending' if options.get(name, True) else 'skipped'
+                          for name in SECTIONS if name != 'headers'}
     }
+    checkpoint(scan_id)
     
     # Start background scan
     thread = threading.Thread(target=run_scan, args=(scan_id, domain, options))
@@ -125,6 +142,7 @@ def run_scan(scan_id, domain, options):
                 subdomains = subdomain_enum.enumerate(domain)
                 scan_results[scan_id]['subdomains'] = subdomains
                 scan_status[scan_id]['progress'] = 20
+                module_finished(scan_id, "subdomains")
 
             # Run email enumeration if selected
             email_results = {} # Initialize email_results
@@ -135,6 +153,7 @@ def run_scan(scan_id, domain, options):
                 email_results = email_enum.find_email_patterns(domain)
                 scan_results[scan_id]['email_enumeration'] = email_results
                 scan_status[scan_id]['progress'] = 30
+                module_finished(scan_id, "email")
 
             # Run port scanning on active subdomains
             if options.get('ports', True):
@@ -169,6 +188,7 @@ def run_scan(scan_id, domain, options):
                 print(f"Port scan raw results: {port_results}")
                 scan_results[scan_id]['port_scan'] = [r for r in port_results if r is not None]
                 scan_status[scan_id]['progress'] = 40
+                module_finished(scan_id, "ports")
             
             # Run DNS scanning
             if options.get('dns', True):
@@ -179,6 +199,7 @@ def run_scan(scan_id, domain, options):
                 aggressive = options.get('intensity', 'normal') == 'aggressive'
                 scan_results[scan_id]['dns_records'] = dns_scanner.scan(aggressive=aggressive)
                 scan_status[scan_id]['progress'] = 50
+                module_finished(scan_id, "dns")
 
 
             if options.get('real_ip', True):
@@ -208,6 +229,7 @@ def run_scan(scan_id, domain, options):
                     'techniques_used': list(real_ip_discovery.ip_utils.cdn_ranges.keys())
                 }
                 scan_status[scan_id]['progress'] = 60  # Updated progress value
+                module_finished(scan_id, "real_ip")
 
 
             # In the run_scan function, update the SSL scan section:
@@ -231,6 +253,7 @@ def run_scan(scan_id, domain, options):
     
                 scan_results[scan_id]['ssl_scan'] = ssl_results
                 scan_status[scan_id]['progress'] = 70
+                module_finished(scan_id, "ssl")
 
             # Run technology detection
             if options.get('tech', True):
@@ -250,6 +273,7 @@ def run_scan(scan_id, domain, options):
                     
                 scan_results[scan_id]['tech_detection'] = tech_results
                 scan_status[scan_id]['progress'] = 80
+                module_finished(scan_id, "tech")
             
             # Run security analysis
             scan_status[scan_id]['current_task'] = 'Running security analysis...'
@@ -258,12 +282,15 @@ def run_scan(scan_id, domain, options):
                 security_analyst = FastSecurityAnalyst()
                 security_analysis = security_analyst.analyze_subdomains(domain, subdomains)
             scan_results[scan_id]['security_analysis'] = security_analysis
+            if options.get('security', True):
+                module_finished(scan_id, 'security')
             
             # Add email enumeration results to security analysis
             if options.get('email', True):
                 security_analysis['email_analysis'] = email_results
                 scan_results[scan_id]['security_analysis'] = security_analysis
             
+            scan_results[scan_id]['evidence'] = normalize(scan_results[scan_id])
             # Run AI analysis
             if options.get('ai', True):
                 scan_status[scan_id]['current_task'] = 'Generating Mithril AI insights...'
@@ -286,6 +313,8 @@ def run_scan(scan_id, domain, options):
         scan_status[scan_id]['error'] = str(e)
         scan_status[scan_id]['progress'] = 0
         print(f"Scan error for {scan_id}: {e}")
+    finally:
+        checkpoint(scan_id)
 
 @app.route('/scan_status/<scan_id>')
 def get_scan_status(scan_id):
@@ -295,9 +324,9 @@ def get_scan_status(scan_id):
     status = scan_status[scan_id].copy()
     
     # Convert datetime objects to strings
-    if 'start_time' in status:
+    if isinstance(status.get('start_time'), datetime):
         status['start_time'] = status['start_time'].isoformat()
-    if 'end_time' in status:
+    if isinstance(status.get('end_time'), datetime):
         status['end_time'] = status['end_time'].isoformat()
     
     return jsonify(status)
@@ -306,6 +335,9 @@ def get_scan_status(scan_id):
 def get_results(scan_id):
     if scan_id not in scan_results:
         return jsonify({'error': 'Results not found'}), 404
+    if 'security_analysis' not in scan_results[scan_id]:
+        evidence = normalize(scan_results[scan_id])
+        return jsonify(evidence=evidence, assessment=assess(evidence))
     
     # Add duration to results if available
     if scan_id in scan_status and 'duration' in scan_status[scan_id]:
@@ -391,6 +423,9 @@ def mithril_check():
 
 
 if __name__ == '__main__':
+    for scan_id, (saved_status, saved_report) in store.restore().items():
+        scan_status[scan_id] = saved_status
+        scan_results[scan_id] = saved_report
     port = int(os.getenv('FLAME_SWORD_PORT', '5055'))
     print(f"Flame Sword: http://127.0.0.1:{port}")
     app.run(debug=False, host='127.0.0.1', port=port)
