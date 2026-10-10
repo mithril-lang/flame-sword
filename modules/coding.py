@@ -112,6 +112,9 @@ def propose(task, request_id, lookup_only=False):
 
 
 def verify(task_file, proposal_file, plan_file, receipt_file):
+    output = Path(receipt_file)
+    if output.exists() or output.is_symlink():
+        raise ValueError('Independent verification requires a new receipt path.')
     verifier = os.getenv('FLAME_CODE_VERIFIER', '')
     expected = os.getenv('FLAME_CODE_VERIFIER_SHA256', '')
     contract_expected = os.getenv('FLAME_CODE_CONTRACT_SHA256', '')
@@ -128,10 +131,11 @@ def verify(task_file, proposal_file, plan_file, receipt_file):
     result = subprocess.run(['node', str(path), str(task_file), str(proposal_file), str(plan_file), str(receipt_file)],
                             capture_output=True,
                             env={k: v for k, v in os.environ.items() if k in ('PATH', 'HOME', 'TMPDIR', 'DOCKER_HOST')})
-    output = Path(receipt_file)
     if not output.is_file():
         raise ValueError('Independent verification failed without a receipt.')
     receipt = json.loads(output.read_text())
+    if receipt.get('verified') and result.returncode != 0:
+        raise ValueError('Verifier exited unsuccessfully after writing a receipt.')
     if (hashlib.sha256(path.read_bytes()).hexdigest() != expected
             or hashlib.sha256(contract.read_bytes()).hexdigest() != contract_expected):
         raise ValueError('Trusted verifier source changed during verification.')

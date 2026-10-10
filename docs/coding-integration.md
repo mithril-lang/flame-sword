@@ -13,6 +13,8 @@ scans from MCP, or convert this Python application into Mithril.
 2. `flame.evidence/v1` projects the actual scanner sections, content hashes,
    collection states, and coverage gaps. Missing results remain unknown.
    Known credential fields and email enumeration are excluded from AI context.
+   Truncated projections are explicitly marked incomplete; they cannot establish
+   that a response header is absent. Nested email-analysis copies are excluded.
    This bounded projection is not a general secret detector: operators must
    still review selected source and observations before sending them.
 3. A deterministic assessment currently evaluates only measured response
@@ -25,6 +27,8 @@ scans from MCP, or convert this Python application into Mithril.
 5. A separately qualified owner verifier compares baseline and candidate
    snapshots in Docker. The controlled qualification preserves route contracts
    and retests the header. A passing receipt applies only to those contracts.
+   Each invocation requires a new receipt path so an older result cannot be
+   reused after a verifier failure.
 
 AI analysis of reports uses `api.mithril.fund`; Code proposals use the Code
 service. These are separate requests. Proposals do not update CodeGraph or

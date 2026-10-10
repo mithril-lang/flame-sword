@@ -3,7 +3,7 @@ import uuid
 from unittest.mock import patch
 import pytest
 
-from modules.coding import candidate, task_identity, sha, propose
+from modules.coding import candidate, task_identity, sha, propose, verify
 
 
 def task():
@@ -49,4 +49,13 @@ def test_secret_filename_is_refused_before_network(monkeypatch, filename):
     with patch('modules.coding.requests.post') as call:
         with pytest.raises(ValueError):
             propose(value, str(uuid.uuid4()))
+    call.assert_not_called()
+
+
+def test_existing_success_receipt_cannot_be_reused(tmp_path):
+    output = tmp_path / 'verification.json'
+    output.write_text('{"verified": true}')
+    with patch('modules.coding.subprocess.run') as call:
+        with pytest.raises(ValueError, match='new receipt path'):
+            verify(tmp_path / 'task.json', tmp_path / 'proposal.json', tmp_path / 'plan.json', output)
     call.assert_not_called()

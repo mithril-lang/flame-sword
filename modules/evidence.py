@@ -6,7 +6,7 @@ SECTIONS = {'subdomains': 'subdomains', 'ports': 'port_scan', 'dns': 'dns_record
             'ssl': 'ssl_scan', 'tech': 'tech_detection', 'email': 'email_enumeration',
             'real_ip': 'real_ip', 'security': 'security_analysis', 'headers': 'http_headers'}
 PRIVATE = {'secrets', 'secret', 'password', 'authorization', 'cookie', 'set-cookie',
-           'api_key', 'token', 'access_token', 'email_enumeration', 'ai_analysis'}
+           'api_key', 'token', 'access_token', 'email_enumeration', 'email_analysis', 'ai_analysis'}
 
 
 def encoded(value):
@@ -30,6 +30,17 @@ def projection(value, depth=0):
     return value if value is None or isinstance(value, (bool, int, float)) else str(value)[:300]
 
 
+def projection_limited(value, depth=0):
+    if depth > 5:
+        return True
+    if isinstance(value, dict):
+        return len(value) > 30 or any(len(str(k)) > 120 or projection_limited(v, depth + 1)
+                                     for k, v in value.items() if str(k).lower() not in PRIVATE)
+    if isinstance(value, list):
+        return len(value) > 20 or any(projection_limited(v, depth + 1) for v in value)
+    return isinstance(value, str) and len(value) > 300
+
+
 def normalize(report):
     if not isinstance(report, dict):
         raise ValueError('Report must be an object.')
@@ -44,14 +55,16 @@ def normalize(report):
             gaps.append({'module': module, 'reason': state if state != 'completed' else 'empty_observations'})
         if data and module != 'email':
             value = projection(data)
+            limited = projection_limited(data)
             if len(encoded(value)) > 2048:
                 value = {'note': 'Evidence too large for AI projection; inspect the private raw report.'}
+                limited = True
+            if limited:
                 gaps.append({'module': module, 'reason': 'projection_limit'})
             observations.append({'id': digest({'section': section, 'data': data}),
                                  'module': module, 'collection_status': state,
+                                 'projection_complete': not limited,
                                  'classification': 'observation', 'data': value})
-    if isinstance(report.get('subdomains'), list) and len(report['subdomains']) > 20:
-        gaps.append({'module': 'subdomains', 'reason': 'projection_limit'})
     source = {k: v for k, v in report.items() if k not in ('ai_analysis', 'evidence')}
     return {'format': 'flame.evidence/v1', 'assessment_id': report.get('scan_id'),
             'domain': report.get('domain'), 'observed_at': report.get('timestamp'),
@@ -67,7 +80,8 @@ def normalize(report):
 def assess(evidence):
     findings = []
     for item in evidence['observations']:
-        if item['module'] != 'headers' or item['collection_status'] != 'completed':
+        if (item['module'] != 'headers' or item['collection_status'] != 'completed'
+                or item.get('projection_complete') is not True):
             continue
         data = item['data']
         if not isinstance(data, dict) or not isinstance(data.get('headers'), dict) or not isinstance(data.get('status'), int):
