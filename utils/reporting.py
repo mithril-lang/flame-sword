@@ -747,15 +747,15 @@ class ReportGenerator:
         if email_data.get('found_emails'):
             elements.append(Paragraph("Discovered Emails", self.heading2_style))
             
-            email_data = [["Email", "Type", "Confidence"]]
+            email_rows = [["Email", "Type", "Confidence"]]
             for email in email_data['found_emails'][:20]:  # Limit to 20
-                email_data.append([
+                email_rows.append([
                     email.get('email', 'N/A'),
                     email.get('type', 'N/A').title(),
                     f"{email.get('confidence', 0)}%"
                 ])
             
-            email_table = Table(email_data, colWidths=[2.5*inch, 1.5*inch, 1*inch])
+            email_table = Table(email_rows, colWidths=[2.5*inch, 1.5*inch, 1*inch])
             email_table.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), self.secondary_color),
                 ('TEXTCOLOR', (0,0), (-1,0), colors.white),
@@ -778,9 +778,9 @@ class ReportGenerator:
             login_data = [["URL", "Type", "Status"]]
             for login in email_data['login_pages'][:10]:  # Limit to 10
                 login_data.append([
-                    Paragraph(login.get('url', 'N/A'), self.table_cell_style),  # Ensure string conversion
-                    Paragraph(login.get('type', 'N/A').title().replace('_', ' '), self.table_cell_style),  # Ensure string conversion
-                    Paragraph(login.get('status', '200'), self.table_cell_style)  # Ensure string conversion
+                    Paragraph(str(login.get('url', 'N/A')), self.table_cell_style),  # Ensure string conversion
+                    Paragraph(str(login.get('type', 'N/A')).title().replace('_', ' '), self.table_cell_style),  # Ensure string conversion
+                    Paragraph(str(login.get('status', '200')), self.table_cell_style)  # Ensure string conversion
                 ])
             
             login_table = Table(login_data, colWidths=[3*inch, 1*inch, 1*inch])
