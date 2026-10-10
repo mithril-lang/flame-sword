@@ -63,6 +63,15 @@ Production publication is gated to Cloudflare Workers Builds on a clean
 `main` commit (`scripts/release-browser.mjs`); it verifies the published build
 matches the deployed SHA and runs an anonymous session smoke.
 
+## System One and Desktop integration
+
+Native reports now have profile-bound SQLite recovery, bounded evidence and
+coverage states, a four-tool MCP interface, and an inert selected-source Code
+proposal adapter. A controlled Flask fixture supports independent baseline,
+candidate, and header-retest qualification. See
+[the integration contract](docs/coding-integration.md) for owner configuration,
+the credential-free control lane, and remaining Desktop/CodeGraph work.
+
 ## Verification
 
 ```sh
