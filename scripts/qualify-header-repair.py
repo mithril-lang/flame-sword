@@ -24,6 +24,20 @@ def write(path, data):
     path.chmod(0o600)
 
 
+def measured_response(output):
+    marker = 'FLAME_RESPONSE_JSON='
+    if output.count(marker) != 1:
+        raise ValueError('Independent check did not emit exactly one measured-response record.')
+    try:
+        value, _ = json.JSONDecoder().raw_decode(output.split(marker, 1)[1])
+    except ValueError:
+        raise ValueError('Independent measured-response record is invalid.') from None
+    if (not isinstance(value, dict) or set(value) != {'status', 'headers'}
+            or type(value['status']) is not int or not isinstance(value['headers'], dict)):
+        raise ValueError('Independent measured-response shape is invalid.')
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--control', action='store_true', help='Use a deterministic patch; no secret resolution or inference.')
@@ -109,7 +123,7 @@ def main():
         raise ValueError('Candidate verification failed; inspect the retained receipt. No automatic repair.')
     checks = verification['receipt']['checks']
     retest_output = next(c['output'] for c in checks if c['id'] == 'header-retest')
-    measured = next(json.loads(line) for line in retest_output.splitlines() if line.startswith('{'))
+    measured = measured_response(retest_output)
     retest = dict(report, http_headers=measured)
     retest_assessment = assess(normalize(retest))
     assert retest_assessment['findings'] == []

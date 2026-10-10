@@ -23,10 +23,12 @@ class Contract(unittest.TestCase):
         for path in ['/', '/health', '/absent']:
             response = client.get(path)
             self.assertEqual(response.headers.get('X-Content-Type-Options'), 'nosniff')
-        response = client.get('/')
-        print(json.dumps({'status': response.status_code,
-                          'headers': {'x-content-type-options': response.headers.get('X-Content-Type-Options')}}))
 
 
 if not unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Contract)).wasSuccessful():
     raise SystemExit(1)
+
+if args.require_nosniff:
+    response = app.test_client().get('/')
+    print('FLAME_RESPONSE_JSON=' + json.dumps({'status': response.status_code,
+          'headers': {'x-content-type-options': response.headers.get('X-Content-Type-Options')}}), flush=True)
