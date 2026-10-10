@@ -1,0 +1,13 @@
+{
+  "name": "flame-sword-browser",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-browser.mjs",
+    "test": "node --test tests/browser-contract.test.mjs",
+    "test:ui": "playwright test",
+    "deploy": "node scripts/release-browser.mjs"
+  },
+  "dependencies": {"pyodide": "314.0.7"},
+  "devDependencies": {"@playwright/test": "1.64.0", "wrangler": "4.149.0"}
+}

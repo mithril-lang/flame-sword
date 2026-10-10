@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Flame Sword · Mithril Scanner</title>
+  <meta name="description" content="Analyze web security observations in your browser with Flame Sword and Mithril.">
+  <link rel="stylesheet" href="/style.css"><script src="/app.js" type="module"></script>
+</head>
+<body>
+  <header><a class="brand" href="/">✦ <span>Flame Sword<small>MITHRIL SCANNER</small></span></a><nav aria-label="Account"><a href="https://console.mithril.fund/" target="_blank" rel="noopener noreferrer">Account &amp; credit ↗</a><a id="signIn" class="button secondary" href="https://auth.mithril.fund/sign-in?return_to=https%3A%2F%2Fconsole.mithril.fund%2F" target="_blank" rel="noopener noreferrer">Sign in with Mithril ↗</a></nav></header>
+  <main>
+    <div class="intro"><div><span class="eyebrow">BROWSER WORKSPACE</span><h1>Understand your<br>web attack surface.</h1><p>Run Flame Sword’s Python analysis in your browser.<br>Review the evidence, then choose what to share with Mithril AI.</p></div><aside><span class="dot"></span><strong id="runtime">Python loads when you analyze</strong><p id="account" role="status">Checking Mithril session…</p><button id="refresh" class="link">Refresh account</button></aside></div>
+    <div class="workspace">
+      <section class="card" aria-labelledby="inputTitle"><div class="section-heading"><span class="step">01</span><h2 id="inputTitle">Your observations</h2><button id="sample" class="link">Load example</button></div>
+        <p class="muted">Import a Flame Sword JSON report, or paste domain and subdomain HTTP observations. Input stays in this tab.</p>
+        <label class="file" for="file">Choose JSON report <input id="file" type="file" accept="application/json,.json"></label>
+        <label for="input">Report JSON <span class="muted"> · 1 MiB maximum / 500 observations</span></label>
+        <textarea id="input" spellcheck="false" placeholder='{"domain":"example.com","subdomains":[{"subdomain":"www.example.com","https_status":200}]}'></textarea>
+        <div class="actions"><button id="analyze" class="button">Analyze in browser</button><button id="cancel" class="button secondary" hidden>Cancel</button></div>
+        <p class="notice">Browser Python cannot run nmap, arbitrary TCP connections or TLS handshakes. Imported statuses are observations supplied by you; hostname patterns are triage indicators.</p>
+        <p id="status" role="status" aria-live="polite"></p>
+      </section>
+      <section class="card" aria-labelledby="resultTitle"><div class="section-heading"><span class="step">02</span><h2 id="resultTitle">Review the evidence</h2><button id="export" class="link" disabled>Export JSON</button></div>
+        <div id="empty" class="empty"><span>◇</span><h3>Analysis stays with you.</h3><p>Load a report to see observations,<br>triage priorities and remediation advice.</p></div>
+        <div id="results" hidden><div class="stats"><div><strong id="total">0</strong><span>Observations</span></div><div><strong id="active">0</strong><span>HTTP responses</span></div><div><strong id="https">0</strong><span>HTTPS responses</span></div></div><p class="notice">Rule-based triage · not a verified vulnerability assessment</p><pre id="output"></pre></div>
+      </section>
+    </div>
+    <section class="card ai" aria-labelledby="aiTitle"><div><span class="eyebrow">OPTIONAL · MITHRIL API</span><h2 id="aiTitle">A second perspective, with your consent.</h2><p>Uses your signed-in Mithril account and available AI credit. Local analysis works without signing in.</p><p class="muted">Sign-in opens in another tab. Return here and refresh your account after signing in.</p></div><div>
+      <label for="model">Mithril model</label><select id="model"><option value="">Load the model catalog</option></select><button id="models" class="link">Load models</button>
+      <label for="preview">Exact observation summary sent to AI</label><textarea id="preview" readonly placeholder="Analyze a report first."></textarea>
+      <label class="consent"><input type="checkbox" id="consent"> I approve sending this preview to Mithril AI and using my AI credit.</label>
+      <button id="ai" class="button" disabled>Analyze with Mithril AI</button><p id="aiStatus" role="status" aria-live="polite"></p><pre id="aiOutput" hidden></pre>
+    </div></section>
+    <footer><span>Flame Sword · Mithril Fund</span><a href="https://github.com/mithril-lang/flame-sword" target="_blank" rel="noopener noreferrer">Source &amp; local scanning tools ↗</a></footer>
+  </main>
+</body>
+</html>

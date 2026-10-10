@@ -1,0 +1,11 @@
+import {cp, mkdir, readFile, rm, writeFile} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+await rm('dist', {recursive: true, force: true});
+await mkdir('dist/python', {recursive: true});
+for (const file of ['index.html', 'app.js', 'style.css', 'python-worker.js']) await cp('browser/' + file, 'dist/' + file);
+await cp('modules/FastAnalyst.py', 'dist/python/FastAnalyst.py');
+await cp('browser/analysis.py', 'dist/python/analysis.py');
+await cp('node_modules/pyodide', 'dist/runtime', {recursive: true});
+const sha = execFileSync('git', ['rev-parse', 'HEAD'], {encoding: 'utf8'}).trim();
+await writeFile('dist/build.json', JSON.stringify({sha, pyodide: JSON.parse(await readFile('node_modules/pyodide/package.json')).version}));
+console.log('Built self-hosted Pyodide assets for ' + sha);

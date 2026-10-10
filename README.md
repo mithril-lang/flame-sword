@@ -32,6 +32,37 @@ For 1Password, set `MITHRIL_API_KEY_REF=op://vault/item/field` instead. The serv
 
 The server exposes credential-free configuration at `/api/mithril/status` and an explicit model-catalog check at `POST /api/mithril/check`.
 
+## Browser scanner
+
+A self-hosted Pyodide port of the rule-based analyst runs in the browser without
+a backend. It imports a Flame Sword JSON report (up to 1 MiB), re-validates the
+domain and up to 500 in-domain subdomain observations, and runs the vendored
+`FastSecurityAnalyst` inside a dedicated worker. The worker keeps no
+credentials and makes no network calls; analysis output is labeled
+`execution: browser-pyodide` and `evidence: user-supplied observations`.
+
+The web app is a Cloudflare Workers site (`wrangler.jsonc`, route
+`scanner.mithril.fund`). The optional AI preview signs in through Mithril Auth
+and posts the report preview (up to 16 KiB) to
+`api.mithril.fund/v1/chat/completions` only after the operator explicitly
+chooses a model and approves consent. The Worker bounds the request body to
+24 KiB before parsing. The scanner does not scan, probe or mutate any host; it
+analyzes supplied observations.
+
+```sh
+npm install
+npm run build          # node scripts/build-browser.mjs -> dist/ (self-hosted Pyodide assets)
+npm run deploy         # node scripts/release-browser.mjs (Workers Builds on clean main)
+```
+
+The `test` and `test:ui` npm scripts are declared for the pending browser
+contract and Playwright specs; they are not part of the local Python
+verification below.
+
+Production publication is gated to Cloudflare Workers Builds on a clean
+`main` commit (`scripts/release-browser.mjs`); it verifies the published build
+matches the deployed SHA and runs an anonymous session smoke.
+
 ## Verification
 
 ```sh

@@ -1,7 +1,6 @@
 import os
 import json
 from datetime import datetime
-from flask import current_app
 import logging
 
 class FastSecurityAnalyst:
